@@ -1,20 +1,211 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 type KeyDesc = string | { label?: string; w?: number; h?: number; x?: number; y?: number; c?: string };
 type Row = KeyDesc[];
+type VIAMap = number[][]; // [[r,c], ...]
+
+interface ViaStyleObject {
+  c?: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  label?: string;
+}
+
+import { VIAKey } from '../lib/via';
 
 type Props = {
-  layout: Row[];
+  layout: Row[] | VIAMap | VIAKey[][];
   // optional mapping to show key assignment under the label
   mapping?: string[]; // flattened key assignments
   isViaLayout?: boolean; // 是否是VIA格式的布局
+  onKeyClick?: (index: number) => void;
+  selectedKeyIndex?: number | null;
 };
 
-export default function KeyboardLayout({ layout, mapping, isViaLayout = false }: Props) {
+// VIA键盘渲染常量，基于VIA项目的标准
+const KEY_WIDTH = 52;      // 单个按键的宽度（像素）
+const KEY_HEIGHT = 54;     // 单个按键的高度（像素）
+const KEY_X_SPACING = 2;   // X方向按键间距
+const KEY_Y_SPACING = 2;   // Y方向按键间距
+const KEY_X_POS = KEY_WIDTH + KEY_X_SPACING;  // X方向单位位置
+const KEY_Y_POS = KEY_HEIGHT + KEY_Y_SPACING; // Y方向单位位置
+
+// 简化的按键接口
+interface SimpleKey {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  c?: string;
+  label?: string;
+  index: number;
+}
+
+// 简化的VIA布局解析，基于parse_keymap.js的逻辑
+function parseVIALayout(layout: Row[]): SimpleKey[] {
+  const keys: SimpleKey[] = [];
+  let globalIndex = 0;
+
+  for (let rowIndex = 0; rowIndex < layout.length; rowIndex++) {
+    const row = layout[rowIndex];
+    let currentX = 0;
+    let currentY = rowIndex;
+    let currentC = '#cccccc';
+    let currentW = 1;
+    let currentH = 1;
+
+    for (let colIndex = 0; colIndex < row.length; colIndex++) {
+      const item = row[colIndex];
+
+      if (typeof item === 'object' && item !== null) {
+        // 样式对象，更新当前属性
+        const style = item as ViaStyleObject;
+        if (style.x !== undefined) currentX += style.x;
+        if (style.y !== undefined) currentY += style.y;
+        if (style.c !== undefined) currentC = style.c;
+        if (style.w !== undefined) currentW = style.w;
+        if (style.h !== undefined) currentH = style.h;
+      } else if (typeof item === 'string') {
+        // 按键字符串，创建按键
+        const parts = item.split('\n');
+        const matrix = parts[0];
+        const label = parts[1] || matrix;
+
+        const key: SimpleKey = {
+          x: currentX,
+          y: currentY,
+          w: currentW,
+          h: currentH,
+          c: currentC,
+          label,
+          index: globalIndex
+        };
+
+        keys.push(key);
+
+        // 前进到下一个按键位置
+        currentX += currentW;
+        globalIndex++;
+      }
+    }
+  }
+
+  return keys;
+}
+
+// Hook to get window size
+function useWindowSize() {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    function updateSize() {
+      setSize({ width: window.innerWidth, height: window.innerHeight });
+    }
+
+    // Set initial size
+    updateSize();
+
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  return size;
+}
+
+// Default QMK keycode mapping for common labels
+const DEFAULT_KEYCODES: Record<string, string> = {
+  'ESC': 'KC_ESC',
+  '1': 'KC_1',
+  '2': 'KC_2',
+  '3': 'KC_3',
+  '4': 'KC_4',
+  '5': 'KC_5',
+  '6': 'KC_6',
+  '7': 'KC_7',
+  '8': 'KC_8',
+  '9': 'KC_9',
+  '0': 'KC_0',
+  '-': 'KC_MINS',
+  '=': 'KC_EQL',
+  'BKSP': 'KC_BSPC',
+  'TAB': 'KC_TAB',
+  'Q': 'KC_Q',
+  'W': 'KC_W',
+  'E': 'KC_E',
+  'R': 'KC_R',
+  'T': 'KC_T',
+  'Y': 'KC_Y',
+  'U': 'KC_U',
+  'I': 'KC_I',
+  'O': 'KC_O',
+  'P': 'KC_P',
+  '[': 'KC_LBRC',
+  ']': 'KC_RBRC',
+  '\\': 'KC_BSLS',
+  'CAPS': 'KC_CAPS',
+  'A': 'KC_A',
+  'S': 'KC_S',
+  'D': 'KC_D',
+  'F': 'KC_F',
+  'G': 'KC_G',
+  'H': 'KC_H',
+  'J': 'KC_J',
+  'K': 'KC_K',
+  'L': 'KC_L',
+  ';': 'KC_SCLN',
+  "'": 'KC_QUOT',
+  'ENTER': 'KC_ENT',
+  'LSHIFT': 'KC_LSFT',
+  'Z': 'KC_Z',
+  'X': 'KC_X',
+  'C': 'KC_C',
+  'V': 'KC_V',
+  'B': 'KC_B',
+  'N': 'KC_N',
+  'M': 'KC_M',
+  ',': 'KC_COMM',
+  '.': 'KC_DOT',
+  '/': 'KC_SLSH',
+  'RSHIFT': 'KC_RSFT',
+  'LCTRL': 'KC_LCTL',
+  'LWIN': 'KC_LGUI',
+  'LALT': 'KC_LALT',
+  'SPACE': 'KC_SPC',
+  'RALT': 'KC_RALT',
+  'RWIN': 'KC_RGUI',
+  'MENU': 'KC_APP',
+  'RCTRL': 'KC_RCTL',
+  'FN': 'MO(1)',
+  'UP': 'KC_UP',
+  'LEFT': 'KC_LEFT',
+  'DOWN': 'KC_DOWN',
+  'RIGHT': 'KC_RIGHT',
+};
+
+// 计算键盘边界框，参考VIA项目
+function calculateKeyboardBounds(allKeys: Array<{ x: number; y: number; w: number; h: number }>) {
+  const minX = Math.min(...allKeys.map(k => k.x));
+  const minY = Math.min(...allKeys.map(k => k.y));
+  const maxX = Math.max(...allKeys.map(k => k.x + k.w));
+  const maxY = Math.max(...allKeys.map(k => k.y + k.h));
+
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: maxX - minX,
+    height: maxY - minY
+  };
+}
+
+export default function KeyboardLayout({ layout, mapping, isViaLayout = false, onKeyClick, selectedKeyIndex }: Props) {
   if (isViaLayout) {
-    return <VIAKeyboardLayout layout={layout} mapping={mapping} />;
+    return <VIAKeyboardLayout layout={layout} mapping={mapping} onKeyClick={onKeyClick} selectedKeyIndex={selectedKeyIndex} />;
   }
 
   // 原有的简单布局显示
@@ -29,20 +220,22 @@ export default function KeyboardLayout({ layout, mapping, isViaLayout = false }:
         return (
           <div key={r} className="flex gap-2 mb-2" style={{ alignItems: 'center' }}>
             {row.map((k, c) => {
-              const desc = typeof k === 'string' ? { label: k, w: 1 } : { label: k.label ?? '', w: k.w ?? 1 };
+              const desc = typeof k === 'string' ? { label: k, w: 1 } : typeof k === 'number' ? { label: k.toString(), w: 1 } : { label: k.label ?? '', w: k.w ?? 1 };
               const flex = Math.max(0.25, desc.w ?? 1);
               const globalIndex = rowStartIndex + c;
               const mapLabel = mapping?.[globalIndex] ?? '';
+              const defaultKeycode = DEFAULT_KEYCODES[desc.label];
+              const displayLabel = mapLabel || defaultKeycode || desc.label;
               const keyIndex = globalIndex;
 
               return (
                 <div
                   key={c}
                   className="key-item flex flex-col items-center justify-center rounded border bg-gray-50 dark:bg-neutral-800"
-                  style={{ flex: flex, minWidth: 28, padding: '6px 8px' }}
+                  style={{ flex: flex, minWidth: 28, padding: '6px 8px', height: '40px' }}
                 >
-                  <div className="text-xs font-medium">{desc.label}</div>
-                  <div className="text-[10px] text-zinc-500 mt-1">{mapLabel}</div>
+                  <div className="text-xs font-medium">{displayLabel}</div>
+                  {mapLabel && defaultKeycode && <div className="text-[10px] text-zinc-500 mt-1">{desc.label}</div>}
                   <div className="text-[9px] text-zinc-400 mt-1">#{keyIndex}</div>
                 </div>
               );
@@ -54,139 +247,285 @@ export default function KeyboardLayout({ layout, mapping, isViaLayout = false }:
   );
 }
 
-// VIA格式键盘布局组件
-function VIAKeyboardLayout({ layout, mapping }: { layout: Row[]; mapping?: string[] }) {
-  // 计算所有键的边界
-  const allKeys: Array<{ label: string; index: number; x: number; y: number; w: number; h: number; c?: string }> = [];
-  let currentX = 0;
-  let currentY = 0;
-  let globalIndex = 0;
-  let currentColor = '#cccccc'; // 默认颜色
+// VIA风格的按键组件，参考VIA项目优化
+interface VIAKeycapProps {
+  label: string;
+  index: number;
+  mapLabel?: string;
+  defaultKeycode?: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color?: string;
+  isSelected?: boolean;
+  onClick?: () => void;
+}
 
-  for (let rowIndex = 0; rowIndex < layout.length; rowIndex++) {
-    const row = layout[rowIndex];
-    currentX = 0;
+function VIAKeycap({ label, index, mapLabel, defaultKeycode, x, y, w, h, color, isSelected, onClick }: VIAKeycapProps) {
+  // 根据颜色获取样式，参考VIA项目
+  const getKeyStyles = (color?: string) => {
+    const baseStyles = {
+      bgClass: 'bg-gradient-to-b from-gray-100 to-gray-200 dark:from-neutral-600 dark:to-neutral-700 border border-gray-300 dark:border-neutral-500',
+      textColor: 'text-gray-800 dark:text-zinc-100',
+      shadowClass: 'shadow-md shadow-gray-300/30 dark:shadow-neutral-900/30'
+    };
 
-    for (let colIndex = 0; colIndex < row.length; colIndex++) {
-      const key = row[colIndex];
-
-      if (typeof key === 'object' && key !== null) {
-        // 这是样式/定位对象，如 { "c": "#777777" } 或 { "x": 0.5, "w": 2 }
-        const styleObj = key as Record<string, any>;
-        if (styleObj.c !== undefined) currentColor = styleObj.c;
-        if (styleObj.x !== undefined) currentX = styleObj.x;
-        if (styleObj.y !== undefined) currentY = styleObj.y;
-        // 如果这个对象有w或h，它可能是一个特殊的按键
-        if (styleObj.w !== undefined || styleObj.h !== undefined) {
-          // 这是一个按键定义
-          const label = styleObj.label || '';
-          const w = styleObj.w || 1;
-          const h = styleObj.h || 1;
-          const x = currentX;
-          const y = currentY;
-          const c = styleObj.c || currentColor;
-
-          allKeys.push({
-            label,
-            index: globalIndex,
-            x,
-            y,
-            w,
-            h,
-            c
-          });
-
-          currentX += w;
-          globalIndex++;
-        }
-        continue;
-      }
-
-      // 处理字符串按键
-      let label = '';
-      const w = 1;
-      const h = 1;
-      const x = currentX;
-      const y = currentY;
-      const c = currentColor;
-
-      if (typeof key === 'string') {
-        // 解析VIA格式的字符串，如 "0,0\nESC"
-        const parts = key.split('\n');
-        if (parts.length > 1) {
-          label = parts[1];
-        } else {
-          // 可能是矩阵坐标，如 "0,0"
-          label = key;
-        }
-      }
-
-      allKeys.push({
-        label,
-        index: globalIndex,
-        x,
-        y,
-        w,
-        h,
-        c
-      });
-
-      currentX += w;
-      globalIndex++;
+    if (isSelected) {
+      return {
+        bgClass: 'bg-blue-500 dark:bg-blue-600 border border-blue-400',
+        textColor: 'text-white',
+        shadowClass: 'shadow-md shadow-blue-500/50 ring-2 ring-blue-400 ring-offset-2 dark:ring-offset-gray-900'
+      };
     }
-    currentY += 1;
-  }
 
-  // 计算缩放和偏移
-  const minX = Math.min(...allKeys.map(k => k.x));
-  const minY = Math.min(...allKeys.map(k => k.y));
-  const maxX = Math.max(...allKeys.map(k => k.x + k.w));
-  const maxY = Math.max(...allKeys.map(k => k.y + k.h));
+    switch (color) {
+      case '#cccccc':
+        return {
+          ...baseStyles,
+          bgClass: 'bg-gradient-to-b from-gray-200 to-gray-300 dark:from-neutral-500 dark:to-neutral-600 border border-gray-400 dark:border-neutral-400'
+        };
+      case '#aaaaaa':
+        return {
+          ...baseStyles,
+          bgClass: 'bg-gradient-to-b from-gray-300 to-gray-400 dark:from-neutral-400 dark:to-neutral-500 border border-gray-500 dark:border-neutral-300'
+        };
+      case '#777777':
+        return {
+          ...baseStyles,
+          bgClass: 'bg-gradient-to-b from-gray-400 to-gray-500 dark:from-neutral-300 dark:to-neutral-400 border border-gray-600 dark:border-neutral-200',
+          textColor: 'text-white dark:text-zinc-50'
+        };
+      default:
+        return baseStyles;
+    }
+  };
 
-  const scale = 30; // 每个单位30px，适配PC网页端
-  const offsetX = -minX * scale;
-  const offsetY = -minY * scale;
+  const styles = getKeyStyles(color);
 
-  const containerWidth = (maxX - minX) * scale + 40;
-  const containerHeight = (maxY - minY) * scale + 40;
+  const displayLabel = mapLabel || defaultKeycode || label;
 
   return (
-    <div className="keyboard-visual bg-gray-100 dark:bg-neutral-800 rounded border p-4" style={{ width: containerWidth, height: containerHeight }}>
-      <div className="relative" style={{ width: containerWidth - 32, height: containerHeight - 32 }}>
-        {allKeys.map((key, idx) => {
-          const left = (key.x * scale) + offsetX;
-          const top = (key.y * scale) + offsetY;
-          const width = key.w * scale - 4;
-          const height = key.h * scale - 4;
-          const mapLabel = mapping?.[key.index] ?? '';
-          const label = key.label;
+    <div
+      className={`absolute flex flex-col items-center justify-center rounded-md ${styles.bgClass} ${styles.textColor} ${styles.shadowClass} hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer`}
+      onClick={onClick}
+      style={{
+        left: `${x}px`,
+        top: `${y}px`,
+        width: `${w}px`,
+        height: `${h}px`,
+        fontSize: w > 80 ? '14px' : w > 60 ? '12px' : '10px',
+        padding: '2px 4px',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div className="font-bold text-center leading-tight drop-shadow-sm truncate w-full">
+        {displayLabel}
+      </div>
+      {mapLabel && defaultKeycode && (
+        <div className="text-[8px] text-zinc-600 dark:text-zinc-300 mt-0.5 leading-tight opacity-80 truncate w-full">
+          {label}
+        </div>
+      )}
+      <div className="text-[7px] text-zinc-500 dark:text-zinc-400 mt-0.5 opacity-60">
+        #{index}
+      </div>
+    </div>
+  );
+}
 
-          // 根据颜色设置背景色
-          let bgColor = 'bg-gray-200 dark:bg-neutral-700';
-          if (key.c) {
-            if (key.c === '#cccccc') bgColor = 'bg-gray-300 dark:bg-neutral-600';
-            else if (key.c === '#aaaaaa') bgColor = 'bg-gray-400 dark:bg-neutral-500';
-            else if (key.c === '#777777') bgColor = 'bg-gray-500 dark:bg-neutral-400';
-          }
+// 单个键盘按键组件
+interface KeyProps {
+  label: string;
+  index: number;
+  mapLabel?: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color?: string;
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+function KeyboardKey({ label, index, mapLabel, x, y, w, h, color, scale, offsetX, offsetY }: KeyProps) {
+  const left = (x * scale) + offsetX;
+  const top = (y * scale) + offsetY;
+  const width = w * scale - 4;
+  const height = h * scale - 4;
+
+  // 根据颜色设置样式
+  const getKeyStyles = (color?: string) => {
+    const baseStyles = {
+      bgClass: 'bg-gradient-to-b from-gray-100 to-gray-200 dark:from-neutral-600 dark:to-neutral-700 border-gray-300 dark:border-neutral-500',
+      textColor: 'text-gray-800 dark:text-zinc-100',
+      shadowClass: 'shadow-lg shadow-gray-300/50 dark:shadow-neutral-900/50'
+    };
+
+    switch (color) {
+      case '#cccccc':
+        return {
+          ...baseStyles,
+          bgClass: 'bg-gradient-to-b from-gray-200 to-gray-300 dark:from-neutral-500 dark:to-neutral-600 border-gray-400 dark:border-neutral-400'
+        };
+      case '#aaaaaa':
+        return {
+          ...baseStyles,
+          bgClass: 'bg-gradient-to-b from-gray-300 to-gray-400 dark:from-neutral-400 dark:to-neutral-500 border-gray-500 dark:border-neutral-300'
+        };
+      case '#777777':
+        return {
+          ...baseStyles,
+          bgClass: 'bg-gradient-to-b from-gray-400 to-gray-500 dark:from-neutral-300 dark:to-neutral-400 border-gray-600 dark:border-neutral-200',
+          textColor: 'text-white dark:text-zinc-50'
+        };
+      default:
+        return baseStyles;
+    }
+  };
+
+  const styles = getKeyStyles(color);
+
+  return (
+    <div
+      className={`absolute flex flex-col items-center justify-center rounded-lg border-2 ${styles.bgClass} ${styles.textColor} ${styles.shadowClass} hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer`}
+      style={{
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${width}px`,
+        height: `${height}px`,
+        fontSize: w > 1.5 ? '12px' : '10px'
+      }}
+    >
+      <div className="font-semibold text-center leading-tight drop-shadow-sm">{mapLabel || label}</div>
+      {mapLabel && (
+        <div className="text-[8px] text-zinc-600 dark:text-zinc-300 mt-1 leading-tight opacity-80">{label}</div>
+      )}
+      <div className="text-[7px] text-zinc-500 dark:text-zinc-400 mt-1 opacity-60">#{index}</div>
+    </div>
+  );
+}
+
+// 键盘容器组件
+interface KeyboardContainerProps {
+  width: number;
+  height: number;
+  children: React.ReactNode;
+}
+
+function KeyboardContainer({ width, height, children }: KeyboardContainerProps) {
+  return (
+    <div className="keyboard-visual bg-gray-100 dark:bg-neutral-800 rounded border p-4" style={{ width, height }}>
+      <div className="relative" style={{ width: width - 32, height: height - 32 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// VIA格式键盘布局组件 - 简化的绝对定位布局
+function VIAKeyboardLayout({ layout, mapping, onKeyClick, selectedKeyIndex }: {
+  layout: Row[] | VIAMap | VIAKey[][];
+  mapping?: string[];
+  onKeyClick?: (index: number) => void;
+  selectedKeyIndex?: number | null;
+}) {
+  const windowSize = useWindowSize();
+
+  // 处理VIA布局：如果是VIAKey[][]格式，直接使用；否则解析
+  const keys = useMemo(() => {
+    // 检查是否已经是VIAKey[][]格式
+    if (Array.isArray(layout) && layout.length > 0 && Array.isArray(layout[0]) && typeof layout[0][0] === 'object' && layout[0][0] !== null && 'row' in layout[0][0]) {
+      // 已经是VIAKey[][]格式，直接展平
+      return (layout as VIAKey[][]).flat().map((key, index) => ({
+        ...key,
+        index
+      }));
+    } else {
+      // 需要解析原始VIA布局
+      return parseVIALayout(layout as Row[]);
+    }
+  }, [layout]);
+
+  // 计算键盘边界和响应式尺寸
+  const layoutConfig = useMemo(() => {
+    if (keys.length === 0) return { width: 800, height: 300, scale: 1, offsetX: 0, offsetY: 0 };
+
+    const maxX = Math.max(...keys.map(k => (k.x ?? 0) + (k.w ?? 1)));
+    const maxY = Math.max(...keys.map(k => (k.y ?? 0) + (k.h ?? 1)));
+
+    const naturalWidth = maxX * KEY_X_POS;
+    const naturalHeight = maxY * KEY_Y_POS;
+
+    // 计算容器可用宽度（考虑padding和margin）
+    const containerPadding = 32; // 左右padding 16px * 2
+    const availableWidth = windowSize.width - containerPadding - 64; // 额外留出一些边距
+
+    // 设置最小宽度为屏幕宽度的80%，最大宽度为自然宽度
+    const minWidth = Math.max(600, Math.min(availableWidth * 0.8, naturalWidth));
+
+    // 计算缩放比例
+    const scale = naturalWidth > minWidth ? minWidth / naturalWidth : 1;
+
+    // 居中对齐
+    const offsetX = (naturalWidth * scale - naturalWidth) / 2;
+    const offsetY = 0;
+
+    return {
+      width: naturalWidth * scale,
+      height: naturalHeight * scale,
+      scale,
+      offsetX,
+      offsetY,
+      naturalWidth,
+      naturalHeight
+    };
+  }, [keys, windowSize.width]);
+
+  return (
+    <div
+      className="keyboard-visual bg-gray-100 dark:bg-neutral-800 rounded border p-4 mx-auto overflow-hidden"
+      style={{
+        width: layoutConfig.width,
+        height: layoutConfig.height,
+        maxWidth: '100%',
+        maxHeight: '600px', // 限制最大高度
+        minWidth: '600px' // 保证最小宽度
+      }}
+    >
+      <div
+        className="relative"
+        style={{
+          width: layoutConfig.width - 32,
+          height: layoutConfig.height - 32
+        }}
+      >
+        {keys.map((key) => {
+          const pixelX = ((key.x ?? 0) * KEY_X_POS) * layoutConfig.scale + layoutConfig.offsetX;
+          const pixelY = ((key.y ?? 0) * KEY_Y_POS) * layoutConfig.scale + layoutConfig.offsetY;
+          const pixelW = (key.w ?? 1) * KEY_WIDTH * layoutConfig.scale;
+          const pixelH = (key.h ?? 1) * KEY_HEIGHT * layoutConfig.scale;
+
+          const mapLabel = mapping?.[key.index];
+          const defaultKeycode = DEFAULT_KEYCODES[key.label || ''];
+          const displayLabel = mapLabel || defaultKeycode || key.label || '';
 
           return (
-            <div
-              key={idx}
-              className={`absolute flex flex-col items-center justify-center rounded border-2 border-gray-400 dark:border-neutral-500 ${bgColor} shadow-sm`}
-              style={{
-                left: `${left}px`,
-                top: `${top}px`,
-                width: `${width}px`,
-                height: `${height}px`,
-                fontSize: key.w > 1.5 ? '12px' : '10px'
-              }}
-            >
-              <div className="font-medium text-center leading-tight">{label}</div>
-              {mapLabel && (
-                <div className="text-[8px] text-zinc-600 dark:text-zinc-300 mt-1 leading-tight">{mapLabel}</div>
-              )}
-              <div className="text-[7px] text-zinc-500 dark:text-zinc-400 mt-1">#{key.index}</div>
-            </div>
+            <VIAKeycap
+              key={key.index}
+              label={key.label || ''}
+              index={key.index}
+              mapLabel={mapLabel}
+              defaultKeycode={defaultKeycode}
+              x={pixelX}
+              y={pixelY}
+              w={pixelW}
+              h={pixelH}
+              color={key.c}
+              isSelected={selectedKeyIndex === key.index}
+              onClick={() => onKeyClick?.(key.index)}
+            />
           );
         })}
       </div>

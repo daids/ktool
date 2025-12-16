@@ -1,0 +1,68 @@
+{
+  "common": {
+    "loading": "読み込み中...",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "edit": "編集",
+    "add": "追加",
+    "remove": "削除",
+    "clear": "クリア",
+    "close": "閉じる",
+    "ok": "OK",
+    "yes": "はい",
+    "no": "いいえ"
+  },
+  "navigation": {
+    "home": "ホーム",
+    "dashboard": "ダッシュボード",
+    "settings": "設定",
+    "help": "ヘルプ"
+  },
+  "keyboard": {
+    "layout": "キーボードレイアウト",
+    "keymap": "キーマップ",
+    "lighting": "ライティング",
+    "macros": "マクロ",
+    "configuration": "設定",
+    "connect": "キーボード接続",
+    "disconnect": "切断",
+    "connected": "接続済み",
+    "disconnected": "切断済み",
+    "noKeyboard": "キーボードが検出されません"
+  },
+  "keymap": {
+    "editor": "キーマップエディタ",
+    "selectKeycode": "キーコードを選択",
+    "addRow": "行を追加",
+    "addColumn": "列を追加",
+    "removeRow": "行を削除",
+    "removeColumn": "列を削除",
+    "clearAll": "すべてクリア",
+    "load": "キーマップを読み込み",
+    "save": "キーマップを保存"
+  },
+  "lighting": {
+    "control": "ライティングコントロール",
+    "brightness": "明るさ",
+    "effect": "エフェクト",
+    "speed": "速度",
+    "color": "色",
+    "mode": "モード"
+  },
+  "macros": {
+    "editor": "マクロエディタ",
+    "record": "マクロを録画",
+    "play": "マクロを再生",
+    "stop": "録画を停止",
+    "clear": "マクロをクリア"
+  },
+  "language": {
+    "select": "言語を選択",
+    "english": "English",
+    "chineseSimplified": "簡体字中国語",
+    "chineseTraditional": "繁体字中国語",
+    "japanese": "日本語",
+    "korean": "韓国語"
+  }
+}

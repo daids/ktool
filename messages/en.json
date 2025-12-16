@@ -1,0 +1,78 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "remove": "Remove",
+    "clear": "Clear",
+    "close": "Close",
+    "ok": "OK",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "navigation": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "help": "Help"
+  },
+  "keyboard": {
+    "layout": "Keyboard Layout",
+    "keymap": "Keymap",
+    "lighting": "Lighting",
+    "macros": "Macros",
+    "configuration": "Configuration",
+    "connect": "Connect Keyboard",
+    "disconnect": "Disconnect",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "noKeyboard": "No keyboard detected"
+  },
+  "keymap": {
+    "editor": "Keymap Editor",
+    "selectKeycode": "Select Keycode",
+    "addRow": "Add Row",
+    "addColumn": "Add Column",
+    "removeRow": "Remove Row",
+    "removeColumn": "Remove Column",
+    "clearAll": "Clear All",
+    "load": "Load Keymap",
+    "save": "Save Keymap"
+  },
+  "lighting": {
+    "control": "Lighting Control",
+    "brightness": "Brightness",
+    "effect": "Effect",
+    "speed": "Speed",
+    "color": "Color",
+    "mode": "Mode"
+  },
+  "macros": {
+    "editor": "Macro Editor",
+    "record": "Record Macro",
+    "play": "Play Macro",
+    "stop": "Stop Recording",
+    "clear": "Clear Macro"
+  },
+  "home": {
+    "description": "Use WebHID to connect directly to your keyboard for configuration.",
+    "tryDemo": "Try Demo Mode",
+    "supportedBrowsers": "Supported browsers: Chrome, Edge",
+    "howToConnect": "How to connect:",
+    "step1": "1. Click the \"Connect Keyboard\" button above",
+    "step2": "2. If previously connected, it will auto-connect",
+    "step3": "3. Otherwise, select your keyboard from the device list",
+    "step4": "4. Allow the connection when prompted"
+  },
+  "language": {
+    "select": "Select Language",
+    "english": "English",
+    "chineseSimplified": "简体中文",
+    "chineseTraditional": "繁體中文",
+    "japanese": "日本語",
+    "korean": "한국어"
+  }
+}

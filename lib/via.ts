@@ -1,26 +1,71 @@
-// Minimal VIA layout importer/exporter helpers
-// Provides simple compatibility: imports common VIA keyboard JSON shapes
+export interface VIALayoutJSON {
+  version?: number;
+  layouts?: {
+    keymap?: (string | object)[][];
+    [key: string]: (string | object)[][] | undefined;
+  } | Record<string, any>;
+  layout?: (string | object)[][];
+  keys?: Array<{
+    x?: number;
+    y?: number;
+    w?: number;
+    width?: number;
+    h?: number;
+    label?: string;
+    key?: string;
+    text?: string;
+    [key: string]: any;
+  }>;
+  name?: string;
+  vendorId?: string;
+  productId?: string;
+}
 
-export function parseViaLayout(json: any): Array<any[]> | null {
+export interface VIAKey {
+  label?: string;
+  row?: number;
+  col?: number;
+  w?: number;
+  h?: number;
+  x?: number;
+  y?: number;
+  c?: string;
+  [key: string]: any;
+}
+
+export function parseViaLayout(json: VIALayoutJSON | (string | object)[][] | any[]): VIAKey[][] | number[][] | null {
   if (!json) return null;
 
+  // Case 0: VIA v3 - layouts as array with map
+  if ('version' in json && json.version === 3 && (json as any).layouts && Array.isArray((json as any).layouts)) {
+    const layouts = (json as any).layouts;
+    if (layouts.length > 0) {
+      const firstLayout = layouts[0];
+      if (firstLayout.map && Array.isArray(firstLayout.map)) {
+        // Return the map as [[r,c], ...] for v3
+        return firstLayout.map as number[][];
+      }
+    }
+  }
+
   // Case 1: 'layouts' : { NAME: [ [..], [..] ] }
-  if (json.layouts && typeof json.layouts === 'object') {
+  if ('layouts' in json && json.layouts && typeof json.layouts === 'object') {
     // prefer a common key like 'keymap' or first array value
-    if (Array.isArray(json.layouts.keymap)) return normalizeRows(json.layouts.keymap);
-    const vals = Object.values(json.layouts);
+    const layouts = json.layouts as Record<string, (string | object)[][]>;
+    if (Array.isArray(layouts.keymap)) return normalizeRows(layouts.keymap);
+    const vals = Object.values(layouts);
     if (vals.length > 0 && Array.isArray(vals[0])) {
       // assume already array of rows
-      return normalizeRows(vals[0] as Array<any[]>);
+      return normalizeRows(vals[0]);
     }
   }
 
   // Case 2: 'keymap' or 'layout' as array-of-rows
-  if (Array.isArray(json)) return normalizeRows(json as Array<any[]>);
-  if (Array.isArray(json.layout)) return normalizeRows(json.layout as Array<any[]>);
+  if (Array.isArray(json)) return normalizeRows(json as unknown as (string | object)[][]);
+  if ('layout' in json && Array.isArray(json.layout)) return normalizeRows(json.layout);
 
   // Case 3: 'keys' array with x/y/w/h/label coordinates (common in some schemas)
-  if (Array.isArray(json.keys)) {
+  if ('keys' in json && Array.isArray(json.keys)) {
     // group by y coordinate (rounded to nearest integer)
     const buckets: Record<number, any[]> = {};
     for (const k of json.keys) {
@@ -36,83 +81,150 @@ export function parseViaLayout(json: any): Array<any[]> | null {
         const w = k.w ?? k.width ?? 1;
         return typeof label === 'string' ? { label, w } : String(label);
       }));
-    return normalizeRows(rows as any[]);
+    return normalizeRows(rows);
   }
 
   return null;
 }
 
 // Normalize a VIA-style rows array into rows of key descriptors
-function normalizeRows(rows: any[]): Array<any[]> {
-  const out: Array<any[]> = [];
+function normalizeRows(rows: (string | object)[][]): VIAKey[][] {
+  const out: VIAKey[][] = [];
   for (const row of rows) {
     if (!Array.isArray(row)) {
       // try to skip non-row entries
       continue;
     }
-    const normRow: any[] = [];
-    let pendingMeta: any = null;
+    const normRow: VIAKey[] = [];
+    
+    // State that persists across keys in a row
+    let currentMeta: Record<string, any> = {};
+    let pendingProps: Record<string, any> = {};
+    let currentOffsetY = 0;
+    let pendingX = 0;
+
     for (let i = 0; i < row.length; i++) {
       const cell = row[i];
       if (cell && typeof cell === 'object' && !Array.isArray(cell)) {
-        // metadata like {c:'#aaa', w:1.5, x:0.5}
-        pendingMeta = cell;
+        // metadata like {c:'#aaa', w:1.5, x:0.5, y:-0.75}
+        const meta = cell as Record<string, any>;
+        
+        // Handle geometry accumulations
+        if (typeof meta.y === 'number') {
+          currentOffsetY += meta.y;
+        }
+        if (typeof meta.x === 'number') {
+          pendingX += meta.x;
+        }
+
+        // Merge other metadata (colors, sizes) into current state
+        // We exclude geometry props from currentMeta because they are usually one-shot or handled separately
+        const { x, y, w, h, x2, y2, w2, h2, ...rest } = meta;
+        Object.assign(currentMeta, rest);
+        
+        // If w/h are present, we temporarily store them to apply to the NEXT key only?
+        // Actually, in KLE, if a style object has {w:2}, it applies to the immediate next key.
+        // It does NOT persist for subsequent keys.
+        // So we should store them in a 'pendingProps' object that clears after use.
+        if (w !== undefined) pendingProps.w = w;
+        if (h !== undefined) pendingProps.h = h;
+        if (x2 !== undefined) pendingProps.x2 = x2;
+        if (y2 !== undefined) pendingProps.y2 = y2;
+        if (w2 !== undefined) pendingProps.w2 = w2;
+        if (h2 !== undefined) pendingProps.h2 = h2;
+        
         continue;
       }
+      
       // cell is likely a string like "0,0\nESC" or a simple token
       let label: string | undefined = undefined;
+      const desc: VIAKey = {};
+      
       if (typeof cell === 'string') {
         const parts = cell.split('\n');
         if (parts.length > 1) {
+          // extract matrix coords from parts[0]
+          const coords = parts[0].split(',');
+          if (coords.length === 2) {
+             const r = parseInt(coords[0]);
+             const c = parseInt(coords[1]);
+             if (!isNaN(r) && !isNaN(c)) {
+               desc.row = r;
+               desc.col = c;
+             }
+          }
           label = parts.slice(1).join('\n').trim();
         } else {
           // token like '0,1' -- no label
-          label = undefined;
-        }
-      } else if (cell == null) {
-        label = undefined;
-      } else {
-        // fallback to string representation
-        label = String(cell);
-      }
-
-      const desc: any = {};
-      if (label) desc.label = label;
-      if (pendingMeta) {
-        if (typeof pendingMeta.w === 'number') desc.w = pendingMeta.w;
-          if (typeof pendingMeta.h === 'number') desc.h = pendingMeta.h;
-          if (typeof pendingMeta.x === 'number') desc.x = pendingMeta.x;
-        // preserve other meta for future use
-        // desc.meta = pendingMeta;
-        pendingMeta = null;
-      }
-
-      // if no label and no metadata, keep as empty string to reserve spot
-      if (!desc.label && desc.w == null && desc.h == null && desc.x == null && desc.matrix == null) {
-        normRow.push('');
-      } else {
-        // if only label exists, push label string for simpler rendering
-        if (desc.w == null && desc.h == null && desc.x == null && !desc.matrix) {
-          normRow.push(desc.label ?? '');
-        } else {
-          normRow.push(desc);
+          // Check if it's a coord pair
+          const coords = cell.split(',');
+          if (coords.length === 2) {
+             const r = parseInt(coords[0]);
+             const c = parseInt(coords[1]);
+             if (!isNaN(r) && !isNaN(c)) {
+               desc.row = r;
+               desc.col = c;
+             }
+          }
+          // If not a pair, maybe just a label
+          if (desc.row === undefined) {
+             label = cell;
+          }
         }
       }
+
+      if (label !== undefined) desc.label = label;
+      
+      // Apply persistent metadata (colors, etc)
+      Object.assign(desc, currentMeta);
+      
+      // Apply one-shot properties (width, height, secondary dims)
+      Object.assign(desc, pendingProps);
+      pendingProps = {};
+
+      // Apply calculated geometry
+      if (currentOffsetY !== 0) desc.y = currentOffsetY;
+      if (pendingX !== 0) desc.x = pendingX;
+      
+      // default width
+      if (!desc.w) desc.w = 1;
+
+      normRow.push(desc);
+      
+      // Reset x after usage (it's a gap before the key)
+      pendingX = 0;
     }
     out.push(normRow);
   }
   return out;
 }
 
-export function buildViaLayout(layout: Array<any[]> , meta?: { name?: string }): any {
-  // Build a simple VIA-friendly layout: { name, layouts: { keymap: [...] } }
+export function buildViaLayout(layout: VIAKey[][] | number[][], meta?: { name?: string, version?: number }): VIALayoutJSON {
   const name = meta?.name ?? 'ktool-layout';
+  const version = meta?.version ?? 2;
+
+  if (version === 3) {
+    return {
+      version: 3,
+      layouts: {
+        layouts: [{
+          name: name,
+          map: layout as number[][]
+        }]
+      } as any
+    };
+  }
+
+  // version 2 default
   return {
-    name,
+    name: name,
+    vendorId: '0xFEED', // placeholder
+    productId: '0x0000', // placeholder
     layouts: {
-      keymap: layout,
-    },
+      keymap: layout as any
+    }
   };
 }
 
-export default { parseViaLayout, buildViaLayout };
+const via = { parseViaLayout, buildViaLayout };
+export default via;

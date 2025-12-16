@@ -1,0 +1,78 @@
+{
+  "common": {
+    "loading": "加载中...",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "add": "添加",
+    "remove": "移除",
+    "clear": "清空",
+    "close": "关闭",
+    "ok": "确定",
+    "yes": "是",
+    "no": "否"
+  },
+  "navigation": {
+    "home": "首页",
+    "dashboard": "仪表板",
+    "settings": "设置",
+    "help": "帮助"
+  },
+  "keyboard": {
+    "layout": "键盘布局",
+    "keymap": "按键映射",
+    "lighting": "灯光",
+    "macros": "宏",
+    "configuration": "配置",
+    "connect": "连接键盘",
+    "disconnect": "断开连接",
+    "connected": "已连接",
+    "disconnected": "已断开",
+    "noKeyboard": "未检测到键盘"
+  },
+  "keymap": {
+    "editor": "按键映射编辑器",
+    "selectKeycode": "选择按键码",
+    "addRow": "添加行",
+    "addColumn": "添加列",
+    "removeRow": "删除行",
+    "removeColumn": "删除列",
+    "clearAll": "清空全部",
+    "load": "加载按键映射",
+    "save": "保存按键映射"
+  },
+  "lighting": {
+    "control": "灯光控制",
+    "brightness": "亮度",
+    "effect": "效果",
+    "speed": "速度",
+    "color": "颜色",
+    "mode": "模式"
+  },
+  "macros": {
+    "editor": "宏编辑器",
+    "record": "录制宏",
+    "play": "播放宏",
+    "stop": "停止录制",
+    "clear": "清空宏"
+  },
+  "home": {
+    "description": "使用 WebHID 直接连接到您的键盘进行配置。",
+    "tryDemo": "试用演示模式",
+    "supportedBrowsers": "支持的浏览器：Chrome、Edge",
+    "howToConnect": "连接方法：",
+    "step1": "1. 点击上面的\"连接键盘\"按钮",
+    "step2": "2. 如果之前连接过，将自动连接",
+    "step3": "3. 否则，从设备列表中选择您的键盘",
+    "step4": "4. 允许连接提示"
+  },
+  "language": {
+    "select": "选择语言",
+    "english": "English",
+    "chineseSimplified": "简体中文",
+    "chineseTraditional": "繁體中文",
+    "japanese": "日本語",
+    "korean": "한국어"
+  }
+}

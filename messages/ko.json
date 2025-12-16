@@ -1,0 +1,68 @@
+{
+  "common": {
+    "loading": "로딩 중...",
+    "save": "저장",
+    "cancel": "취소",
+    "delete": "삭제",
+    "edit": "편집",
+    "add": "추가",
+    "remove": "제거",
+    "clear": "지우기",
+    "close": "닫기",
+    "ok": "확인",
+    "yes": "예",
+    "no": "아니요"
+  },
+  "navigation": {
+    "home": "홈",
+    "dashboard": "대시보드",
+    "settings": "설정",
+    "help": "도움말"
+  },
+  "keyboard": {
+    "layout": "키보드 레이아웃",
+    "keymap": "키맵",
+    "lighting": "조명",
+    "macros": "매크로",
+    "configuration": "구성",
+    "connect": "키보드 연결",
+    "disconnect": "연결 해제",
+    "connected": "연결됨",
+    "disconnected": "연결 해제됨",
+    "noKeyboard": "키보드가 감지되지 않음"
+  },
+  "keymap": {
+    "editor": "키맵 편집기",
+    "selectKeycode": "키코드 선택",
+    "addRow": "행 추가",
+    "addColumn": "열 추가",
+    "removeRow": "행 제거",
+    "removeColumn": "열 제거",
+    "clearAll": "모두 지우기",
+    "load": "키맵 로드",
+    "save": "키맵 저장"
+  },
+  "lighting": {
+    "control": "조명 제어",
+    "brightness": "밝기",
+    "effect": "효과",
+    "speed": "속도",
+    "color": "색상",
+    "mode": "모드"
+  },
+  "macros": {
+    "editor": "매크로 편집기",
+    "record": "매크로 녹화",
+    "play": "매크로 재생",
+    "stop": "녹화 중지",
+    "clear": "매크로 지우기"
+  },
+  "language": {
+    "select": "언어 선택",
+    "english": "English",
+    "chineseSimplified": "간체 중국어",
+    "chineseTraditional": "번체 중국어",
+    "japanese": "日本語",
+    "korean": "한국어"
+  }
+}
