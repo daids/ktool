@@ -20,6 +20,9 @@
 # production
 /build
 
+#other
+/the-via-app
+
 # misc
 .DS_Store
 *.pem

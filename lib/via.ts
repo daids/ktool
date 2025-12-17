@@ -90,17 +90,21 @@ export function parseViaLayout(json: VIALayoutJSON | (string | object)[][] | any
 // Normalize a VIA-style rows array into rows of key descriptors
 function normalizeRows(rows: (string | object)[][]): VIAKey[][] {
   const out: VIAKey[][] = [];
-  for (const row of rows) {
+  
+  let currentOffsetY = 0;
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex];
     if (!Array.isArray(row)) {
       // try to skip non-row entries
       continue;
     }
     const normRow: VIAKey[] = [];
-    
+
     // State that persists across keys in a row
     let currentMeta: Record<string, any> = {};
     let pendingProps: Record<string, any> = {};
-    let currentOffsetY = 0;
+    
+    let currentX = 0;  // Current X position for automatic key placement
     let pendingX = 0;
 
     for (let i = 0; i < row.length; i++) {
@@ -108,7 +112,7 @@ function normalizeRows(rows: (string | object)[][]): VIAKey[][] {
       if (cell && typeof cell === 'object' && !Array.isArray(cell)) {
         // metadata like {c:'#aaa', w:1.5, x:0.5, y:-0.75}
         const meta = cell as Record<string, any>;
-        
+
         // Handle geometry accumulations
         if (typeof meta.y === 'number') {
           currentOffsetY += meta.y;
@@ -121,7 +125,7 @@ function normalizeRows(rows: (string | object)[][]): VIAKey[][] {
         // We exclude geometry props from currentMeta because they are usually one-shot or handled separately
         const { x, y, w, h, x2, y2, w2, h2, ...rest } = meta;
         Object.assign(currentMeta, rest);
-        
+
         // If w/h are present, we temporarily store them to apply to the NEXT key only?
         // Actually, in KLE, if a style object has {w:2}, it applies to the immediate next key.
         // It does NOT persist for subsequent keys.
@@ -132,14 +136,14 @@ function normalizeRows(rows: (string | object)[][]): VIAKey[][] {
         if (y2 !== undefined) pendingProps.y2 = y2;
         if (w2 !== undefined) pendingProps.w2 = w2;
         if (h2 !== undefined) pendingProps.h2 = h2;
-        
+
         continue;
       }
-      
+
       // cell is likely a string like "0,0\nESC" or a simple token
       let label: string | undefined = undefined;
       const desc: VIAKey = {};
-      
+
       if (typeof cell === 'string') {
         const parts = cell.split('\n');
         if (parts.length > 1) {
@@ -174,25 +178,25 @@ function normalizeRows(rows: (string | object)[][]): VIAKey[][] {
       }
 
       if (label !== undefined) desc.label = label;
-      
+
       // Apply persistent metadata (colors, etc)
       Object.assign(desc, currentMeta);
-      
+
       // Apply one-shot properties (width, height, secondary dims)
       Object.assign(desc, pendingProps);
       pendingProps = {};
 
-      // Apply calculated geometry
-      if (currentOffsetY !== 0) desc.y = currentOffsetY;
-      if (pendingX !== 0) desc.x = pendingX;
-      
+      // Apply calculated geometry - always set y to row index + offset
+      desc.y = rowIndex + currentOffsetY;
+      desc.x = currentX + pendingX;  // Use currentX plus any pending offset
+
       // default width
       if (!desc.w) desc.w = 1;
 
       normRow.push(desc);
-      
-      // Reset x after usage (it's a gap before the key)
-      pendingX = 0;
+
+      // Advance currentX by the width of this key
+      currentX += desc.w;
     }
     out.push(normRow);
   }
@@ -225,6 +229,42 @@ export function buildViaLayout(layout: VIAKey[][] | number[][], meta?: { name?: 
     }
   };
 }
+
+// 从VIA布局计算matrix坐标到单位坐标的映射
+export function buildMatrixToCoordinatesMap(viaLayout: VIALayoutJSON): Map<string, { x: number; y: number; w: number; h: number; c?: string; label?: string }> {
+  const matrixMap = new Map<string, { x: number; y: number; w: number; h: number; c?: string; label?: string }>();
+
+  if (!viaLayout.layouts?.keymap) return matrixMap;
+
+  const layout = viaLayout.layouts.keymap;
+  const parsedKeys = parseViaLayout(layout);
+
+  if (!parsedKeys) return matrixMap;
+
+  // 处理VIAKey[][]格式
+  if (Array.isArray(parsedKeys) && parsedKeys.length > 0 && Array.isArray(parsedKeys[0]) && typeof parsedKeys[0][0] === 'object') {
+    const viaKeys = parsedKeys as VIAKey[][];
+    for (const row of viaKeys) {
+      for (const key of row) {
+        if (key.row !== undefined && key.col !== undefined) {
+          const matrixKey = `${key.row},${key.col}`;
+          matrixMap.set(matrixKey, {
+            x: key.x ?? 0,
+            y: key.y ?? 0,
+            w: key.w ?? 1,
+            h: key.h ?? 1,
+            c: key.c,
+            label: key.label
+          });
+        }
+      }
+    }
+  }
+
+  return matrixMap;
+}
+
+
 
 const via = { parseViaLayout, buildViaLayout };
 export default via;

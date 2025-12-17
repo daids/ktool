@@ -97,6 +97,77 @@ function parseVIALayout(layout: Row[]): SimpleKey[] {
   return keys;
 }
 
+// 根据配置文件的keymap索引进行累加偏移的新解析函数
+function parseVIALayoutWithIndexOffset(layout: Row[]): SimpleKey[] {
+  const keys: SimpleKey[] = [];
+  let globalIndex = 0;
+  let currentRowY = 0; // 跟踪当前行的起始Y位置
+
+  for (let rowIndex = 0; rowIndex < layout.length; rowIndex++) {
+    const row = layout[rowIndex];
+    let maxRowHeight = 1; // 当前行的最大高度
+    let currentX = 0; // 当前行的X位置累加器
+    let currentC = '#cccccc'; // 当前颜色
+    let currentW = 1; // 当前宽度
+    let currentH = 1; // 当前高度
+
+    for (let colIndex = 0; colIndex < row.length; colIndex++) {
+      const item = row[colIndex];
+
+      if (typeof item === 'object' && item !== null) {
+        // 样式对象，更新当前属性（包括累加偏移）
+        const style = item as ViaStyleObject;
+        if (style.x !== undefined) currentX += style.x;
+        if (style.y !== undefined) currentRowY += style.y;
+        if (style.c !== undefined) currentC = style.c;
+        if (style.w !== undefined) currentW = style.w;
+        if (style.h !== undefined) currentH = style.h;
+
+        // 如果有label，则这是一个按键对象
+        if (style.label !== undefined) {
+          const key: SimpleKey = {
+            x: currentX,
+            y: currentRowY,
+            w: currentW,
+            h: currentH,
+            c: currentC,
+            label: style.label,
+            index: globalIndex
+          };
+          keys.push(key);
+          maxRowHeight = Math.max(maxRowHeight, currentH);
+          // 前进到下一个按键位置
+          currentX += currentW;
+          globalIndex++;
+        }
+      } else if (typeof item === 'string') {
+        // 按键字符串，使用累积的X位置
+        const parts = item.split('\n');
+        const label = parts[1] || parts[0];
+        const key: SimpleKey = {
+          x: currentX,
+          y: currentRowY,
+          w: currentW,
+          h: currentH,
+          c: currentC,
+          label,
+          index: globalIndex
+        };
+        keys.push(key);
+        maxRowHeight = Math.max(maxRowHeight, currentH);
+        // 前进到下一个按键位置
+        currentX += currentW;
+        globalIndex++;
+      }
+    }
+
+    // 更新下一行的起始Y位置
+    currentRowY += maxRowHeight;
+  }
+
+  return keys;
+}
+
 // Hook to get window size
 function useWindowSize() {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -424,7 +495,7 @@ function KeyboardContainer({ width, height, children }: KeyboardContainerProps) 
   );
 }
 
-// VIA格式键盘布局组件 - 简化的绝对定位布局
+// VIA格式键盘布局组件 - 屏幕一半高度布局，最小400px
 function VIAKeyboardLayout({ layout, mapping, onKeyClick, selectedKeyIndex }: {
   layout: Row[] | VIAMap | VIAKey[][];
   mapping?: string[];
@@ -432,6 +503,7 @@ function VIAKeyboardLayout({ layout, mapping, onKeyClick, selectedKeyIndex }: {
   selectedKeyIndex?: number | null;
 }) {
   const windowSize = useWindowSize();
+  const keyboardHeight = Math.max(windowSize.height / 2, 400);
 
   // 处理VIA布局：如果是VIAKey[][]格式，直接使用；否则解析
   const keys = useMemo(() => {
@@ -443,69 +515,62 @@ function VIAKeyboardLayout({ layout, mapping, onKeyClick, selectedKeyIndex }: {
         index
       }));
     } else {
-      // 需要解析原始VIA布局
-      return parseVIALayout(layout as Row[]);
+      // 使用新的基于索引累加偏移的解析函数
+      return parseVIALayoutWithIndexOffset(layout as Row[]);
     }
   }, [layout]);
 
-  // 计算键盘边界和响应式尺寸
+  // 计算键盘边界和固定比例渲染
   const layoutConfig = useMemo(() => {
-    if (keys.length === 0) return { width: 800, height: 300, scale: 1, offsetX: 0, offsetY: 0 };
+    if (keys.length === 0) return { width: windowSize.width, height: keyboardHeight, scale: 1, offsetX: 0, offsetY: 0 };
 
     const maxX = Math.max(...keys.map(k => (k.x ?? 0) + (k.w ?? 1)));
     const maxY = Math.max(...keys.map(k => (k.y ?? 0) + (k.h ?? 1)));
 
-    const naturalWidth = maxX * KEY_X_POS;
-    const naturalHeight = maxY * KEY_Y_POS;
+    const naturalWidth = maxX * KEY_WIDTH;
+    const naturalHeight = maxY * KEY_HEIGHT;
 
-    // 计算容器可用宽度（考虑padding和margin）
-    const containerPadding = 32; // 左右padding 16px * 2
-    const availableWidth = windowSize.width - containerPadding - 64; // 额外留出一些边距
+    // 使用固定缩放比例而不是适应容器
+    const scale = 1; // 固定比例渲染
 
-    // 设置最小宽度为屏幕宽度的80%，最大宽度为自然宽度
-    const minWidth = Math.max(600, Math.min(availableWidth * 0.8, naturalWidth));
-
-    // 计算缩放比例
-    const scale = naturalWidth > minWidth ? minWidth / naturalWidth : 1;
-
-    // 居中对齐
-    const offsetX = (naturalWidth * scale - naturalWidth) / 2;
-    const offsetY = 0;
+    // 居中水平对齐，顶部对齐垂直方向
+    const offsetX = Math.max(0, (windowSize.width - naturalWidth) / 2);
+    const offsetY = 20; // 固定20px顶部间距
 
     return {
-      width: naturalWidth * scale,
-      height: naturalHeight * scale,
+      width: windowSize.width,
+      height: keyboardHeight,
       scale,
       offsetX,
       offsetY,
       naturalWidth,
       naturalHeight
     };
-  }, [keys, windowSize.width]);
+  }, [keys, windowSize.width, keyboardHeight]);
 
   return (
     <div
-      className="keyboard-visual bg-gray-100 dark:bg-neutral-800 rounded border p-4 mx-auto overflow-hidden"
+      className="keyboard-visual bg-gray-100 dark:bg-neutral-800 overflow-hidden"
       style={{
-        width: layoutConfig.width,
-        height: layoutConfig.height,
-        maxWidth: '100%',
-        maxHeight: '600px', // 限制最大高度
-        minWidth: '600px' // 保证最小宽度
+        width: '100vw',
+        height: `${keyboardHeight}px`,
+        position: 'relative'
       }}
     >
       <div
-        className="relative"
+        className="relative w-full h-full"
         style={{
-          width: layoutConfig.width - 32,
-          height: layoutConfig.height - 32
+          width: layoutConfig.width,
+          height: layoutConfig.height
         }}
       >
         {keys.map((key) => {
-          const pixelX = ((key.x ?? 0) * KEY_X_POS) * layoutConfig.scale + layoutConfig.offsetX;
-          const pixelY = ((key.y ?? 0) * KEY_Y_POS) * layoutConfig.scale + layoutConfig.offsetY;
+          const pixelX = ((key.x ?? 0) * KEY_WIDTH) * layoutConfig.scale + layoutConfig.offsetX;
+          const pixelY = ((key.y ?? 0) * KEY_HEIGHT) * layoutConfig.scale + layoutConfig.offsetY;
           const pixelW = (key.w ?? 1) * KEY_WIDTH * layoutConfig.scale;
           const pixelH = (key.h ?? 1) * KEY_HEIGHT * layoutConfig.scale;
+
+          console.log(`Key ${key.index} (${key.label}) [row:${key.y ?? 0}, col:${key.x ?? 0}]: x=${pixelX}, y=${pixelY}`);
 
           const mapLabel = mapping?.[key.index];
           const defaultKeycode = DEFAULT_KEYCODES[key.label || ''];

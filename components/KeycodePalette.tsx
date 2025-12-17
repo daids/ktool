@@ -178,12 +178,12 @@ export default function KeycodePalette({ onSelectKeycode, customKeycodes }: Prop
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-[300px] overflow-y-auto">
+      <div className="flex flex-wrap gap-2 h-[300px] overflow-y-auto content-start">
         {activeCategory?.keycodes.map((k) => (
           <button
             key={k.code}
             onClick={() => onSelectKeycode(k.code)}
-            className="flex flex-col items-center justify-center p-2 rounded border border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 transition-colors"
+            className="flex flex-col items-center justify-center w-[52px] h-[54px] rounded border border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 transition-colors"
             title={k.title || k.code}
           >
             <span className="text-xs font-bold text-gray-800 dark:text-gray-200">{k.label}</span>

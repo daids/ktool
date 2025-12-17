@@ -32,6 +32,7 @@ export default function DashboardPage() {
       const rawLayout = defaultLayout.layouts.keymap;
       const parsed = via.parseViaLayout(rawLayout);
       if (Array.isArray(parsed)) {
+        console.log('Loaded default layout', parsed);
         setLayoutData(parsed);
       }
     }
@@ -216,87 +217,56 @@ export default function DashboardPage() {
     switch (activeTab) {
       case 'keys':
         return (
-          <div className="space-y-6">
-            {/* Control Bar */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow flex flex-wrap gap-4 items-center justify-between">
-               <div className="flex gap-4 items-center">
-                 <button
-                   onClick={loadKeymapFromDevice}
-                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-                 >
-                   Refresh from Device
-                 </button>
-                 <span className="text-sm text-gray-500">{keymapStatus}</span>
-               </div>
-               
-               <div className="flex gap-4 items-center">
-                 <label className="bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm">
-                   Load Layout (JSON)
-                   <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
-                 </label>
-                 <button
-                   onClick={exportViaLayout}
-                   className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm"
-                 >
-                   Export Layout
-                 </button>
-               </div>
-            </div>
-
-            {/* Virtual Keyboard */}
+          <div className="flex flex-col h-full">
+            {/* Virtual Keyboard - Full Screen */}
             {layoutData && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow overflow-x-auto">
-                <h2 className="text-xl font-bold text-black dark:text-zinc-50 mb-4 text-center">
-                  Layer 0
-                </h2>
-                <div className="flex justify-center min-w-[800px]">
-                  {(() => {
-                    const grid = tryParseJsonGrid(keymapText);
-                    let mapping = grid ? grid.flat() : undefined;
-                    
-                    // Map CUSTOM_X to short names if available
-                    if (mapping && defaultLayout?.customKeycodes) {
-                      mapping = mapping.map(code => {
-                        if (code.startsWith('CUSTOM_')) {
-                          const idx = parseInt(code.replace('CUSTOM_', ''), 10);
-                          const custom = defaultLayout.customKeycodes[idx];
-                          return custom ? (custom.shortName || custom.name) : code;
-                        }
-                        return code;
-                      });
-                    }
+              <div className="flex-1 relative">
+                {(() => {
+                  const grid = tryParseJsonGrid(keymapText);
+                  let mapping = grid ? grid.flat() : undefined;
 
-                    return (
-                      <KeyboardLayout
-                        layout={layoutData}
-                        mapping={mapping}
-                        isViaLayout={true}
-                        onKeyClick={handleKeyClick}
-                        selectedKeyIndex={selectedKeyIndex}
-                      />
-                    );
-                  })()}
-                </div>
+                  // Map CUSTOM_X to short names if available
+                  if (mapping && defaultLayout?.customKeycodes) {
+                    mapping = mapping.map(code => {
+                      if (code.startsWith('CUSTOM_')) {
+                        const idx = parseInt(code.replace('CUSTOM_', ''), 10);
+                        const custom = defaultLayout.customKeycodes[idx];
+                        return custom ? (custom.shortName || custom.name) : code;
+                      }
+                      return code;
+                    });
+                  }
+
+                  return (
+                    <KeyboardLayout
+                      layout={layoutData}
+                      mapping={mapping}
+                      isViaLayout={true}
+                      onKeyClick={handleKeyClick}
+                      selectedKeyIndex={selectedKeyIndex}
+                    />
+                  );
+                })()}
               </div>
             )}
 
-            {/* Keycode Selection */}
+            {/* Keycode Selection - Fixed at bottom */}
             {(() => {
               const grid = tryParseJsonGrid(keymapText);
               if (grid && layoutData) {
                 return (
-                  <div className="space-y-4">
+                  <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                     {/* Selected Key Info */}
                     {selectedKeyIndex !== null && (
-                      <div className="text-center text-sm font-medium text-blue-600 dark:text-blue-400">
+                      <div className="text-center py-2 text-sm font-medium text-blue-600 dark:text-blue-400 border-b border-gray-200 dark:border-gray-700">
                         Editing Key #{selectedKeyIndex}
                       </div>
                     )}
 
                     {/* Keycode Palette */}
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow">
-                      <KeycodePalette 
-                        onSelectKeycode={handleKeycodeSelect} 
+                    <div className="p-4">
+                      <KeycodePalette
+                        onSelectKeycode={handleKeycodeSelect}
                         customKeycodes={defaultLayout.customKeycodes}
                       />
                     </div>
@@ -304,7 +274,7 @@ export default function DashboardPage() {
                 );
               }
               return (
-                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow text-center">
+                <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-6 text-center">
                   <p className="text-gray-600 dark:text-gray-400">
                     Please load a layout file (JSON) to start editing.
                   </p>
@@ -365,9 +335,9 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black font-sans">
+    <div className="h-screen bg-zinc-50 dark:bg-black font-sans flex flex-col">
       {/* Top Navbar */}
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-10">
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm flex-shrink-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
@@ -403,7 +373,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className={`flex-1 overflow-hidden ${activeTab === 'keys' ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'}`}>
         {renderTabContent()}
       </main>
     </div>
